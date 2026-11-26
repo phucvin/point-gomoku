@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Point Gomoku — Puter.js P2P Online Game</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://js.puter.com/v2/"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <span class="stone-dot black"></span>
+          <span class="stone-dot white"></span>
+        </div>
+        <div>
+          <h1>POINT GOMOKU</h1>
+          <p class="subtitle">Exile Zone Edition · Puter.js Peer-to-Peer</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div id="connection-pill" class="status-pill status-idle">
+          <span class="dot"></span>
+          <span id="connection-text">Lobby</span>
+        </div>
+        <button id="btn-auth" class="btn btn-ghost btn-sm" type="button">Sign in with Puter</button>
+        <button id="btn-rules" class="btn btn-ghost btn-sm" type="button">Rules</button>
+        <button id="btn-back-lobby" class="btn btn-outline btn-sm hidden" type="button">Leave Match</button>
+      </div>
+    </header>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- LOBBY VIEW -->
+    <main id="lobby-view" class="lobby-view">
+      <section class="hero">
+        <span class="badge-gold">The Devil's Plan: Dead Again · S3E13</span>
+        <h2>Outbid. Outsmart. Connect Five.</h2>
+        <p>
+          Play <strong>Point Gomoku</strong> directly browser-to-browser with friends using
+          <strong>Puter.js Peer</strong> — no backend server needed. Alternate selecting 3 consecutive
+          intersections, secretly wager points with cryptographic commit-reveal, and hoard unspent
+          points for a decisive all-in round.
+        </p>
+      </section>
+
+      <section class="lobby-grid">
+        <!-- Host Online -->
+        <div class="card lobby-card">
+          <div class="card-header">
+            <span class="card-tag">Puter.js P2P</span>
+            <h3>Host Online Match</h3>
+          </div>
+          <p class="card-desc">
+            Create a private peer-to-peer room and share your invite code or link with a friend.
+            You play as <strong>Black</strong> (Round 1 Selector).
+          </p>
+
+          <div id="host-idle">
+            <button id="btn-host" class="btn btn-primary btn-full" type="button">
+              Create P2P Room
+            </button>
+          </div>
+
+          <div id="host-waiting" class="host-waiting hidden">
+            <label class="field-label">Share this Invite Code</label>
+            <div class="invite-row">
+              <code id="invite-code-display" class="invite-code">------</code>
+              <button id="btn-copy-code" class="btn btn-outline btn-sm" type="button">Copy</button>
+            </div>
+            <button id="btn-copy-link" class="btn btn-ghost btn-sm btn-full" type="button">
+              Copy Direct Join Link
+            </button>
+            <div class="waiting-indicator">
+              <span class="spinner"></span>
+              <span>Waiting for peer to connect…</span>
+            </div>
+            <button id="btn-cancel-host" class="btn btn-danger-ghost btn-sm btn-full" type="button">
+              Cancel Room
+            </button>
+          </div>
+        </div>
+
+        <!-- Join Online -->
+        <div class="card lobby-card">
+          <div class="card-header">
+            <span class="card-tag">Puter.js P2P</span>
+            <h3>Join Online Match</h3>
+          </div>
+          <p class="card-desc">
+            Enter an invite code from your host to connect directly over WebRTC via Puter Peer.
+            You play as <strong>White</strong> (wins ties in Round 1).
+          </p>
+
+          <form id="join-form" class="join-form">
+            <label class="field-label" for="input-invite-code">Invite Code</label>
+            <input
+              id="input-invite-code"
+              class="input"
+              type="text"
+              placeholder="Paste invite code…"
+              autocomplete="off"
+              spellcheck="false"
+              required
+            />
+            <button id="btn-join" class="btn btn-primary btn-full" type="submit">
+              Connect &amp; Join
+            </button>
+          </form>
+        </div>
+
+        <!-- Practice / Local -->
+        <div class="card lobby-card">
+          <div class="card-header">
+            <span class="card-tag tag-muted">Offline / Solo</span>
+            <h3>Practice &amp; Local</h3>
+          </div>
+          <p class="card-desc">
+            Test your point-hoarding strategy against the Exile Zone AI bot, or play locally
+            with two players on the same screen.
+          </p>
+          <div class="stack-sm">
+            <button id="btn-play-bot" class="btn btn-outline btn-full" type="button">
+              Play vs AI Bot
+            </button>
+            <button id="btn-play-local" class="btn btn-ghost btn-full" type="button">
+              Local 2-Player (Pass &amp; Play)
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Rules Strip -->
+      <section class="rules-strip">
+        <div class="rule-pill">
+          <strong>1. Select 3 in a Row</strong>
+          <span>The round's Selector picks 3 consecutive empty intersections (90s timer).</span>
+        </div>
+        <div class="rule-pill">
+          <strong>2. Secretly Bid Points</strong>
+          <span>+10 pts every round. Min 1 pt per spot. Half of unspent pts (rounded down) carry over!</span>
+        </div>
+        <div class="rule-pill">
+          <strong>3. Place &amp; Connect 5</strong>
+          <span>Higher bid claims each spot. Ties go to the <em>non-selector</em>. First to 5 in a row wins.</span>
+        </div>
+      </section>
+    </main>
+
+    <!-- GAME VIEW -->
+    <main id="game-view" class="game-view hidden">
+      <!-- Left Column: Players + Phase + Board -->
+      <section class="board-column">
+        <!-- Players Bar -->
+        <div class="players-bar">
+          <div id="card-black" class="player-card">
+            <div class="player-head">
+              <span class="stone-badge black"></span>
+              <div class="player-meta">
+                <div class="player-name-row">
+                  <span id="name-black" class="player-name">Black</span>
+                  <span id="you-black" class="you-tag hidden">YOU</span>
+                </div>
+                <span id="role-black" class="role-tag">Selector</span>
+              </div>
+            </div>
+            <div class="player-points">
+              <span id="points-black" class="points-val">10</span>
+              <span class="points-unit">pts</span>
+            </div>
+          </div>
+
+          <div class="round-center">
+            <div class="round-label">ROUND</div>
+            <div id="round-number" class="round-num">1</div>
+            <div id="timer-box" class="timer-box hidden">
+              <span id="timer-val">90s</span>
+            </div>
+          </div>
+
+          <div id="card-white" class="player-card">
+            <div class="player-head">
+              <span class="stone-badge white"></span>
+              <div class="player-meta">
+                <div class="player-name-row">
+                  <span id="name-white" class="player-name">White</span>
+                  <span id="you-white" class="you-tag hidden">YOU</span>
+                </div>
+                <span id="role-white" class="role-tag">Wins Ties</span>
+              </div>
+            </div>
+            <div class="player-points">
+              <span id="points-white" class="points-val">10</span>
+              <span class="points-unit">pts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phase Banner -->
+        <div id="phase-banner" class="phase-banner">
+          <span id="phase-badge" class="phase-badge">SELECT</span>
+          <span id="phase-message" class="phase-message">Select 3 consecutive empty intersections.</span>
+        </div>
+
+        <!-- Interactive 15x15 SVG Board -->
+        <div class="board-frame">
+          <svg
+            id="gomoku-board"
+            class="gomoku-board"
+            viewBox="0 0 640 640"
+            role="img"
+            aria-label="15 by 15 Point Gomoku board"
+          ></svg>
+        </div>
+      </section>
+
+      <!-- Right Column: Phase Controls + History/Chat -->
+      <aside class="side-column">
+        <!-- Dynamic Control Panel -->
+        <div class="card control-card">
+          <!-- SELECT PANEL -->
+          <div id="panel-select" class="phase-panel hidden">
+            <h3 id="select-title">Select 3 Consecutive Spots</h3>
+            <p id="select-subtitle" class="muted">
+              Click 3 empty adjacent intersections in a straight line (horizontal, vertical, or diagonal).
+            </p>
+            <div class="spot-chips">
+              <div class="spot-chip"><span>Spot A</span><strong id="chip-a">—</strong></div>
+              <div class="spot-chip"><span>Spot B</span><strong id="chip-b">—</strong></div>
+              <div class="spot-chip"><span>Spot C</span><strong id="chip-c">—</strong></div>
+            </div>
+            <div id="select-actions" class="btn-row">
+              <button id="btn-clear-selection" class="btn btn-ghost" type="button">Clear</button>
+              <button id="btn-confirm-selection" class="btn btn-primary" type="button" disabled>
+                Confirm 3 Spots
+              </button>
+            </div>
+          </div>
+
+          <!-- BET PANEL -->
+          <div id="panel-bet" class="phase-panel hidden">
+            <div class="panel-top-row">
+              <h3 id="bet-title">Secret Point Bidding</h3>
+              <span id="bet-tie-note" class="tie-note"></span>
+            </div>
+            <p id="bet-subtitle" class="muted">
+              Allocate at least <strong>1 pt</strong> to each spot. Unspent points halve (rounded down) and carry over.
+            </p>
+
+            <div class="bet-rows">
+              <div class="bet-row" data-idx="0">
+                <div class="bet-spot-info">
+                  <span class="spot-letter">A</span>
+                  <span id="bet-coord-0" class="spot-coord">H8</span>
+                </div>
+                <div class="stepper">
+                  <button class="step-btn" data-idx="0" data-delta="-1" type="button">−</button>
+                  <input id="bet-input-0" class="bet-input" type="number" min="1" value="1" />
+                  <button class="step-btn" data-idx="0" data-delta="1" type="button">+</button>
+                </div>
+              </div>
+
+              <div class="bet-row" data-idx="1">
+                <div class="bet-spot-info">
+                  <span class="spot-letter">B</span>
+                  <span id="bet-coord-1" class="spot-coord">I8</span>
+                </div>
+                <div class="stepper">
+                  <button class="step-btn" data-idx="1" data-delta="-1" type="button">−</button>
+                  <input id="bet-input-1" class="bet-input" type="number" min="1" value="1" />
+                  <button class="step-btn" data-idx="1" data-delta="1" type="button">+</button>
+                </div>
+              </div>
+
+              <div class="bet-row" data-idx="2">
+                <div class="bet-spot-info">
+                  <span class="spot-letter">C</span>
+                  <span id="bet-coord-2" class="spot-coord">J8</span>
+                </div>
+                <div class="stepper">
+                  <button class="step-btn" data-idx="2" data-delta="-1" type="button">−</button>
+                  <input id="bet-input-2" class="bet-input" type="number" min="1" value="1" />
+                  <button class="step-btn" data-idx="2" data-delta="1" type="button">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="preset-row">
+              <button id="preset-min" class="btn btn-xs btn-ghost" type="button">Hoard (1-1-1)</button>
+              <button id="preset-even" class="btn btn-xs btn-ghost" type="button">Split Evenly</button>
+              <button id="preset-allin" class="btn btn-xs btn-ghost" type="button">Max Spend</button>
+            </div>
+
+            <div class="budget-box">
+              <div class="budget-line">
+                <span>Available / Spending</span>
+                <span><strong id="budget-spent">3</strong> / <span id="budget-avail">10</span> pts</span>
+              </div>
+              <div class="budget-line">
+                <span>Unspent → Carry-over</span>
+                <span>
+                  <span id="budget-rem">7</span> pts →
+                  <strong class="gold-text">+<span id="budget-carry">3</span> pts</strong>
+                </span>
+              </div>
+              <div class="budget-line">
+                <span>Next Round Total</span>
+                <strong id="budget-next">13 pts</strong>
+              </div>
+            </div>
+
+            <div id="bet-status-note" class="status-note hidden"></div>
+
+            <button id="btn-lock-bet" class="btn btn-primary btn-full" type="button">
+              Lock In Secret Bet
+            </button>
+          </div>
+
+          <!-- REVEAL PANEL -->
+          <div id="panel-reveal" class="phase-panel hidden">
+            <h3 id="reveal-title">Round 1 Reveal</h3>
+            <div id="reveal-outcomes" class="reveal-outcomes"></div>
+            <div id="reveal-economy" class="reveal-economy"></div>
+            <div id="reveal-ready-note" class="status-note hidden"></div>
+            <button id="btn-next-round" class="btn btn-primary btn-full" type="button">
+              Continue to Next Round
+            </button>
+          </div>
+
+          <!-- GAME OVER PANEL -->
+          <div id="panel-gameover" class="phase-panel hidden">
+            <div class="gameover-banner">
+              <span class="badge-gold">MATCH COMPLETE</span>
+              <h3 id="gameover-title">Black Wins!</h3>
+              <p id="gameover-subtitle" class="muted">Connected 5 stones in a row.</p>
+            </div>
+            <div id="gameover-outcomes" class="reveal-outcomes"></div>
+            <div id="rematch-note" class="status-note hidden"></div>
+            <div class="btn-row">
+              <button id="btn-rematch" class="btn btn-primary" type="button">Rematch</button>
+              <button id="btn-gameover-lobby" class="btn btn-outline" type="button">Lobby</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Tabs: History & Chat -->
+        <div class="card tabs-card">
+          <div class="tab-bar">
+            <button id="tab-history" class="tab-btn active" type="button">Round Log</button>
+            <button id="tab-chat" class="tab-btn" type="button">
+              Peer Chat <span id="chat-unread" class="unread-dot hidden"></span>
+            </button>
+          </div>
+
+          <div id="pane-history" class="tab-pane">
+            <div id="history-list" class="history-list">
+              <p class="empty-msg">No completed rounds yet.</p>
+            </div>
+          </div>
+
+          <div id="pane-chat" class="tab-pane hidden">
+            <div id="chat-messages" class="chat-messages">
+              <p class="empty-msg">Chat with your opponent in real time via Puter Peer.</p>
+            </div>
+            <form id="chat-form" class="chat-form">
+              <input
+                id="chat-input"
+                class="input input-sm"
+                type="text"
+                placeholder="Send a message…"
+                maxlength="200"
+                autocomplete="off"
+              />
+              <button class="btn btn-primary btn-sm" type="submit">Send</button>
+            </form>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- Local Pass-and-Play Privacy Overlay -->
+  <div id="privacy-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <span class="badge-gold">PASS &amp; PLAY</span>
+      <h3 id="privacy-title">Hand screen to White</h3>
+      <p id="privacy-desc" class="muted">
+        Black has locked in their secret bet. Pass the device to White so they can place their bid privately.
+      </p>
+      <button id="btn-privacy-continue" class="btn btn-primary btn-full" type="button">
+        I'm Ready — Show Betting Panel
+      </button>
+    </div>
+  </div>
+
+  <!-- Rules Modal -->
+  <div id="rules-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card modal-wide">
+      <div class="modal-head">
+        <h3>Point Gomoku — Official Rules</h3>
+        <button id="btn-close-rules" class="btn btn-ghost btn-sm" type="button">Close</button>
+      </div>
+      <div class="rules-content">
+        <p>
+          Featured in <strong>The Devil's Plan: Dead Again</strong> (Season 3, Episode 13) as the final
+          Exile Zone duel, <strong>Point Gomoku</strong> combines five-in-a-row tactics with simultaneous
+          point-bidding and resource hoarding.
+        </p>
+        <ol>
+          <li>
+            <strong>Board &amp; Goal:</strong> Played on a 15×15 Gomoku grid. Be the first player to
+            connect <strong>5 stones in a row</strong> horizontally, vertically, or diagonally.
+          </li>
+          <li>
+            <strong>Phase 1 — Selection (90s):</strong> Players alternate as the <em>Selector</em> each round
+            (Black starts in Round 1). The Selector picks <strong>3 consecutive empty intersections</strong>
+            in a straight line (Spots A, B, and C).
+          </li>
+          <li>
+            <strong>Phase 2 — Secret Bidding:</strong> Both players receive <strong>10 points</strong> each
+            round. Simultaneously and secretly, allocate whole points across Spots A, B, and C
+            (<strong>minimum 1 point per spot</strong>).
+          </li>
+          <li>
+            <strong>Carry-Over Rule:</strong> You do not have to spend all your points! Half of your
+            unspent points (rounded down) carry over and are added to next round's 10 points.
+            For example, saving 7 points grants <code>+3</code> carry-over, giving you <code>13</code> points next round.
+          </li>
+          <li>
+            <strong>Phase 3 — Placement &amp; Tie-Breaker:</strong> For each of the 3 spots, the higher bidder
+            places their stone there. If both players bid the exact same amount on a spot, the
+            <strong>non-selector wins the tie</strong>.
+          </li>
+          <li>
+            <strong>Fair P2P Commit-Reveal:</strong> In online Puter.js matches, your bet is sealed with a
+            SHA-256 hash and only revealed once both peers have locked in, preventing any peeking.
+          </li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
