@@ -11,7 +11,7 @@ A serverless, browser-to-browser multiplayer implementation of **Point Gomoku** 
   - **+10 points** per round, **minimum 1 whole point** per spot.
   - **Carry-over rule**: Half of unspent points (rounded down) carry over to the next round.
   - **Tie-breaker**: The **non-selector** wins any tied spot.
-  - First player to connect **5 stones in a row** wins.
+  - First player to connect **exactly 5 stones in a row** wins (overlines of 6+ do not win and play continues).
 - **Live Peer Chat & Round History** over the same Puter Peer data channel.
 - **Instant Practice Modes**: Play solo against a strategic **Exile AI** bot or play **Local 2-Player (Pass & Play)** with a privacy screen between secret bets.
 

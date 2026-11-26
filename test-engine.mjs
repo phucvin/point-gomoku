@@ -158,6 +158,31 @@ async function runTests() {
   assert.equal(winState.winningLines.length, 1);
   assert.equal(winState.winningLines[0].length, 5);
 
+  // 8b. 6-in-a-row overline does NOT win (game continues)
+  let overlineState = createInitialState();
+  overlineState = applySelection(overlineState, [
+    { r: 5, c: 3 },
+    { r: 5, c: 4 },
+    { r: 5, c: 5 },
+  ]);
+  overlineState = resolveRound(overlineState, {
+    black: [4, 3, 3],
+    white: [1, 1, 1],
+  });
+  overlineState = advanceToNextRound(overlineState);
+  overlineState = applySelection(overlineState, [
+    { r: 5, c: 6 },
+    { r: 5, c: 7 },
+    { r: 5, c: 8 },
+  ]);
+  overlineState = resolveRound(overlineState, {
+    black: [4, 3, 3],
+    white: [1, 1, 1],
+  });
+  assert.equal(overlineState.phase, PHASES.REVEAL, '6-in-a-row must not end the game');
+  assert.equal(overlineState.winner, null);
+  assert.equal(overlineState.winningLines.length, 0);
+
   // 9. Cryptographic commit-reveal hash determinism
   const h1 = await hashBetCommit(1, [4, 3, 3], 'abc123');
   const h2 = await hashBetCommit(1, [4, 3, 3], 'abc123');

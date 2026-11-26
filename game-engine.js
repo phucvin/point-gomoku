@@ -17,7 +17,8 @@
  * - Resolution:
  *   - For each spot, the higher bet wins and places their stone there.
  *   - Tie-breaker: the NON-selector wins any tied spot.
- *   - After all 3 stones are placed, the first player with 5 (or more) in a row wins.
+ *   - After all 3 stones are placed, the first player with EXACTLY 5 in a row wins
+ *     (overlines of 6 or more do not win and the game continues).
  */
 
 export const BOARD_SIZE = 15;
@@ -231,7 +232,8 @@ export function computeNextRoundPoints(remainingPoints) {
 }
 
 /**
- * Scans the board for any 5-or-more-in-a-row for either player.
+ * Scans the board for any EXACTLY 5-in-a-row for either player.
+ * Overlines of 6 or more in a row do NOT win.
  * Returns { blackLines, whiteLines } where each line is an array of {r, c}.
  */
 export function findWinningLines(board) {
@@ -261,7 +263,7 @@ export function findWinningLines(board) {
           nc += dc;
         }
 
-        if (run.length >= 5) {
+        if (run.length === 5) {
           if (stone === PLAYERS.BLACK) blackLines.push(run);
           else whiteLines.push(run);
         }
