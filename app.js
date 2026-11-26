@@ -1150,7 +1150,7 @@ function buildOutcomesHtml(resolution, { revealAll = false } = {}) {
   return resolution.outcomes
     .map((o) => {
       const winName = app.names[o.winner];
-      const tieTag = o.wasTie ? `<span class="tie-pill">TIE</span>` : '';
+      const tieTag = revealAll && o.wasTie ? `<span class="tie-pill">TIE</span>` : '';
       let bidsText;
       if (revealAll) {
         bidsText = `B: <strong>${o.blackBet}</strong> vs W: <strong>${o.whiteBet}</strong>`;
@@ -1274,15 +1274,15 @@ function renderHistory() {
       const spots = r.outcomes
         .map((o) => {
           const winCode = o.winner === PLAYERS.BLACK ? 'B' : 'W';
-          const tieStr = o.wasTie ? ' tie' : '';
+          const tieStr = revealAll && o.wasTie ? ' tie' : '';
           if (revealAll) {
             return `<span class="history-spot-tag">${o.coord}: ${o.blackBet}-${o.whiteBet} (${winCode}${tieStr})</span>`;
           }
           if (app.mode === 'local') {
-            return `<span class="history-spot-tag">${o.coord}: ${winCode}${tieStr}</span>`;
+            return `<span class="history-spot-tag">${o.coord}: ${winCode}</span>`;
           }
           const myBet = app.myColor === PLAYERS.BLACK ? o.blackBet : o.whiteBet;
-          return `<span class="history-spot-tag">${o.coord}: ${myBet}-? (${winCode}${tieStr})</span>`;
+          return `<span class="history-spot-tag">${o.coord}: ${myBet}-? (${winCode})</span>`;
         })
         .join('');
       return `
