@@ -413,6 +413,7 @@ async function handlePeerMessage(msg) {
       if (!app.gameState || app.gameState.phase !== PHASES.BET) return;
       if (msg.round !== app.gameState.round) return;
       app.remoteCommitHash = msg.hash;
+      renderPlayersBar();
       renderControlPanel();
       maybeSendReveal();
       break;
@@ -448,7 +449,8 @@ async function handlePeerMessage(msg) {
       if (app.localReadyNext) {
         proceedToNextRound();
       } else {
-        renderControlPanel();
+        renderPlayersBar();
+      renderControlPanel();
       }
       break;
     }
@@ -459,7 +461,8 @@ async function handlePeerMessage(msg) {
         executeRematch();
       } else {
         toast('Opponent wants a rematch!', 'info');
-        renderControlPanel();
+        renderPlayersBar();
+      renderControlPanel();
       }
       break;
     }
@@ -726,6 +729,7 @@ async function lockInBet() {
       els.privacyTitle.textContent = `Hand screen to ${app.names[PLAYERS.WHITE]}`;
       els.privacyDesc.textContent = `${app.names[PLAYERS.BLACK]} locked in their secret bet. Pass the device to ${app.names[PLAYERS.WHITE]} to bid privately.`;
       els.privacyModal.classList.remove('hidden');
+      renderPlayersBar();
       renderControlPanel();
     } else {
       applyRoundResolution({
@@ -862,12 +866,26 @@ function renderAll() {
   renderHistory();
 }
 
+function canViewPoints(color) {
+  const st = app.gameState;
+  if (!st) return false;
+  if (st.phase === PHASES.GAME_OVER) return true;
+  if (app.mode === 'local') {
+    return st.phase === PHASES.BET && color === app.localBettingPlayer;
+  }
+  return color === app.myColor;
+}
+
 function renderPlayersBar() {
   const st = app.gameState;
   els.nameBlack.textContent = app.names[PLAYERS.BLACK];
   els.nameWhite.textContent = app.names[PLAYERS.WHITE];
-  els.pointsBlack.textContent = String(st.points[PLAYERS.BLACK]);
-  els.pointsWhite.textContent = String(st.points[PLAYERS.WHITE]);
+  els.pointsBlack.textContent = canViewPoints(PLAYERS.BLACK)
+    ? String(st.points[PLAYERS.BLACK])
+    : '???';
+  els.pointsWhite.textContent = canViewPoints(PLAYERS.WHITE)
+    ? String(st.points[PLAYERS.WHITE])
+    : '???';
   els.roundNumber.textContent = String(st.round);
 
   const showYou = app.mode !== 'local';
@@ -1128,11 +1146,20 @@ function renderBetPanel() {
   updateBudgetDisplay();
 }
 
-function buildOutcomesHtml(resolution) {
+function buildOutcomesHtml(resolution, { revealAll = false } = {}) {
   return resolution.outcomes
     .map((o) => {
       const winName = app.names[o.winner];
       const tieTag = o.wasTie ? `<span class="tie-pill">TIE</span>` : '';
+      let bidsText;
+      if (revealAll) {
+        bidsText = `B: <strong>${o.blackBet}</strong> vs W: <strong>${o.whiteBet}</strong>`;
+      } else if (app.mode === 'local') {
+        bidsText = `Bids hidden`;
+      } else {
+        const myBet = app.myColor === PLAYERS.BLACK ? o.blackBet : o.whiteBet;
+        bidsText = `Your bid: <strong>${myBet}</strong> · Opp: <strong>?</strong>`;
+      }
       return `
         <div class="outcome-row">
           <div class="bet-spot-info">
@@ -1140,7 +1167,7 @@ function buildOutcomesHtml(resolution) {
             <span class="spot-coord">${o.coord}</span>
           </div>
           <div class="outcome-bids">
-            B: <strong>${o.blackBet}</strong> vs W: <strong>${o.whiteBet}</strong>
+            ${bidsText}
           </div>
           <div class="outcome-winner">
             <span class="stone-dot ${o.winner}"></span>
@@ -1158,19 +1185,30 @@ function renderRevealPanel() {
   if (!res) return;
 
   els.revealTitle.textContent = `Round ${res.round} Reveal`;
-  els.revealOutcomes.innerHTML = buildOutcomesHtml(res);
-  els.revealEconomy.innerHTML = `
-    <div class="econ-box">
-      <strong>${escapeHtml(app.names[PLAYERS.BLACK])} (Black)</strong>
-      Spent ${res.spent.black} · Saved ${res.remaining.black} → +${res.carryOver.black} carry<br/>
-      Next Round: <strong>${res.nextPoints.black} pts</strong>
-    </div>
-    <div class="econ-box">
-      <strong>${escapeHtml(app.names[PLAYERS.WHITE])} (White)</strong>
-      Spent ${res.spent.white} · Saved ${res.remaining.white} → +${res.carryOver.white} carry<br/>
-      Next Round: <strong>${res.nextPoints.white} pts</strong>
-    </div>
-  `;
+  els.revealOutcomes.innerHTML = buildOutcomesHtml(res, { revealAll: false });
+
+  const renderEconCard = (color, label) => {
+    const visible = app.mode !== 'local' && color === app.myColor;
+    if (!visible) {
+      return `
+        <div class="econ-box">
+          <strong>${escapeHtml(app.names[color])} (${label})</strong>
+          Spent <strong>???</strong> · Carry <strong>???</strong><br/>
+          Next Round: <strong>??? pts</strong>
+        </div>
+      `;
+    }
+    return `
+      <div class="econ-box">
+        <strong>${escapeHtml(app.names[color])} (${label})</strong>
+        Spent ${res.spent[color]} · Saved ${res.remaining[color]} → +${res.carryOver[color]} carry<br/>
+        Next Round: <strong>${res.nextPoints[color]} pts</strong>
+      </div>
+    `;
+  };
+
+  els.revealEconomy.innerHTML =
+    renderEconCard(PLAYERS.BLACK, 'Black') + renderEconCard(PLAYERS.WHITE, 'White');
 
   if (app.mode === 'p2p-host' || app.mode === 'p2p-guest') {
     if (app.localReadyNext && !app.remoteReadyNext) {
@@ -1202,7 +1240,7 @@ function renderGameoverPanel() {
   }
 
   if (st.lastResolution) {
-    els.gameoverOutcomes.innerHTML = buildOutcomesHtml(st.lastResolution);
+    els.gameoverOutcomes.innerHTML = buildOutcomesHtml(st.lastResolution, { revealAll: true });
   }
 
   if (app.mode === 'p2p-host' || app.mode === 'p2p-guest') {
@@ -1230,13 +1268,22 @@ function renderHistory() {
     els.historyList.innerHTML = '<p class="empty-msg">No completed rounds yet.</p>';
     return;
   }
+  const revealAll = app.gameState.phase === PHASES.GAME_OVER;
   els.historyList.innerHTML = hist
     .map((r) => {
       const spots = r.outcomes
-        .map(
-          (o) =>
-            `<span class="history-spot-tag">${o.coord}: ${o.blackBet}-${o.whiteBet} (${o.winner === PLAYERS.BLACK ? 'B' : 'W'}${o.wasTie ? ' tie' : ''})</span>`
-        )
+        .map((o) => {
+          const winCode = o.winner === PLAYERS.BLACK ? 'B' : 'W';
+          const tieStr = o.wasTie ? ' tie' : '';
+          if (revealAll) {
+            return `<span class="history-spot-tag">${o.coord}: ${o.blackBet}-${o.whiteBet} (${winCode}${tieStr})</span>`;
+          }
+          if (app.mode === 'local') {
+            return `<span class="history-spot-tag">${o.coord}: ${winCode}${tieStr}</span>`;
+          }
+          const myBet = app.myColor === PLAYERS.BLACK ? o.blackBet : o.whiteBet;
+          return `<span class="history-spot-tag">${o.coord}: ${myBet}-? (${winCode}${tieStr})</span>`;
+        })
         .join('');
       return `
         <div class="history-item">
